@@ -1,0 +1,273 @@
+---
+title: "Project - R"
+output: html_document
+---
+
+White Wine by Khem Veasna
+========================================================
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Load all of the packages that you end up using
+# in your analysis in this code chunk.
+
+# Notice that the parameter "echo" was set to FALSE for this code chunk.
+# This prevents the code from displaying in the knitted HTML output.
+# You should set echo=FALSE for all code chunks in your file.
+
+
+#install.packages("knitr", dependencies = T)
+#install.packages("dplyr", dependencies = T)
+
+library(ggplot2)
+library(MASS)
+library(memisc)
+library(scales)
+library(lattice)
+#library(cor)
+library(reshape)
+library(plyr)
+library(ggplot2)
+library(GGally)
+library(lattice)
+library(dplyr)
+
+# testing
+library(car)
+```
+
+```{r echo=FALSE, Load_the_Data}
+# Load the Data
+wine <- read.csv('wineQualityWhites.csv',  header=T)
+
+
+
+```
+We will embark in the study of wine data.
+
+The data was obtained from https://www.google.com/url?q=https://s3.amazonaws.com/udacity-hosted-downloads/ud651/wineQualityWhites.csv&sa=D&usg=AFQjCNHSo6vCJWIjCOZw6Kyy-C79XNFQUg 
+
+Let's take a look at the variables.
+
+# Univariate Plots Section
+```{r echo=FALSE, warning=FALSE, Univariate_Plots}
+names(wine)
+
+```
+
+How about their type?
+
+```{r}
+str(wine)
+```
+
+We see that quality is a numeric which will be a problem and we'll address this below.
+
+
+# Univariate Analysis
+
+
+### What is the structure of your dataset?
+
+
+```{r}
+summary(wine) 
+```
+
+We can see the distribution of the quality of wine with this histogram.
+```{r}
+hist(as.numeric(wine$quality))
+     
+```
+
+Let's look at some features. What might influence the quality of wine? 
+
+```{r warning=FALSE}
+aggregate(sulphates ~ quality, wine, mean)
+
+aggregate(alcohol ~ quality, wine, mean)
+```
+
+So we see the average sulphates and alcohol amount for each quality.
+
+I want to know which feature has the most variation?
+
+```{r}
+sapply(wine, sd, na.rm=TRUE)
+```
+
+It looks like total.sulfur.dioxide has the most variation and we'll dig into this further below.
+
+
+### What is/are the main feature(s) of interest in your dataset?
+
+The main interest is to see what feature (or combination of features) of the dataset affects quality of wine the most. 
+
+### What other features in the dataset do you think will help support your investigation into your feature(s) of interest?
+
+From the description of the features, those that affect taste are:
+volatile acidity
+citric acid
+residual sugar
+chlorides
+total sulfur dioxide
+
+
+### Of the features you investigated, were there any unusual distributions? Did you perform any operations on the data to tidy, adjust, or change the form of the data? If so, why did you do this?
+
+The problem here is that an feature that is of interest-- "quality" -- should probably be a category. The value of the quality are 0,1,2,...10. The value is discrete-- 10 being very good quality and 0 being bad quality. 
+
+We will change the 'quality' feature into a category below as part of the preprocessing step.
+
+```{r  Preprocess}
+#Process the data to make quality be a category
+
+wine$quality <- factor(wine$quality)
+```
+
+# Bivariate Plots Section
+```{r echo=FALSE,warning=FALSE, Bivariate_Plots}
+
+```
+This is the result of ggpairs on the wine data.
+
+![title](/Users/khem/Documents/code/r_studio/udacity_r_lang/ggpairs_plot.png).
+
+# Bivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. How did the feature(s) of interest vary with other features in the dataset?
+
+In the last row, we can see that for high quality wine >= 8, those sensory features are low in quantity. The sensory features are:
+volatile acidity
+citric acid
+residual sugar
+chlorides
+total sulfur dioxide
+
+Let's look into this a bit more, e.g. with sulphates.
+
+We can see that higher higher quality wines have less amount of sulphates with the histogram plot below.
+```{r message=FALSE,warning=FALSE}
+ggplot(aes(x=total.sulfur.dioxide), data=wine) +  geom_histogram() + facet_wrap( ~quality) +  scale_fill_brewer(type = 'qual')
+
+```
+```{r}
+ggplot(aes(x=alcohol), data=wine) +  geom_histogram(binwidth=0.1) + facet_wrap( ~quality) +  scale_fill_brewer(type = 'qual')
+
+ggplot(aes(x=sulphates/alcohol), data=wine) +  geom_histogram(binwidth=0.1) + facet_wrap( ~quality) +  scale_fill_brewer(type = 'qual')
+
+ggplot(aes(x=citric.acid), data=wine) +  geom_histogram(binwidth=0.1) + facet_wrap( ~quality) +  scale_fill_brewer(type = 'qual')
+
+```
+
+### Did you observe any interesting relationships between the other features (not the main feature(s) of interest)?
+
+From the ggpairs plot, we can see that some variables have interesting relationships with each other. For example,
+0) citric acid increases as fixed acidity increases
+1)  pH decrease as fixed acidity increase
+2) alcohol decreases as density increases
+3) as chloride increase so does the density
+
+Let's take another look at total.sulfur.dioxide. 
+```{r}
+quality_group <- group_by(wine, quality)
+summarize(quality_group, total_sulphates = mean(total.sulfur.dioxide),n = n())
+```
+
+
+### What was the strongest relationship you found?
+
+The strongest relationship I found with quality is total.sulfur.dioxide.
+
+
+# Multivariate Plots Section
+
+
+# Multivariate Analysis
+
+The relationship between total sulfur dioxide vs quality and citric acid vs quality is similar in that they increase when quality increase.
+
+This is seen from the ggpairs plot above.
+
+Now, maybe the ratio of total sulfur dioxide to citric acid has an interesting relationship to quality. So we'll try this.
+
+```{r warning=FALSE}
+new_df <- wine  %>%  group_by(quality) %>% mutate(total_sulfur_dioxide_over_citric_acid = total.sulfur.dioxide/citric.acid)
+
+ggplot(aes(x=as.numeric(quality), y=total_sulfur_dioxide_over_citric_acid), data=new_df) + geom_point(fill=I('#F79420'), color=I('orange'), alpha = 0.5,  position = position_jitter(h=0))  + scale_x_continuous() + scale_y_continuous(limits=c(0, quantile(new_df$total_sulfur_dioxide_over_citric_acid, 0.99)))  +  geom_line(stat = 'summary', fun.y = mean) 
+```
+
+We can see that the ratio decreases as the quality increases.
+
+### Talk about some of the relationships you observed in this part of the investigation. Were there features that strengthened each other in terms of looking at your feature(s) of interest?
+
+It appears that all these sensory features strengthen each other:
+volatile acidity
+citric acid
+residual sugar
+chlorides
+total sulfur dioxide
+
+
+------
+
+# Final Plots and Summary
+
+## Plot One
+
+### Acidity vs citric acid
+We'll check the acidity vs citric acid as they seem to be related. 
+
+```{r warning=FALSE}
+# scatter
+ggplot(aes(x=fixed.acidity, y=citric.acid), data=wine) + geom_point(fill=I('#F79420'), color=I('black'), alpha = 0.3, shape=21, position = position_jitter(w = 0.1, h = 0.1))  + scale_x_continuous(limits=c(3.8, quantile(wine$fixed.acidity, 0.99))) + scale_y_continuous(limits=c(0.0001, quantile(wine$citric.acid, 0.99))) + stat_smooth(method='lm')
+```
+
+Here we can see that citric acid increases as fixed acidity increases.
+
+## Plot Two
+
+### fixed.acidity vs pH
+
+We'll check the fixed.acidity vs pH as they seem to be related. 
+```{r}
+# scatter
+ggplot(aes(x=fixed.acidity, y=pH), data=wine) + geom_point(fill=I('#F79420'), color=I('black'), alpha = 0.3, shape=21, position = position_jitter(w = 0.1, h = 0.1))  + scale_x_continuous(limits=c(3.8, quantile(wine$fixed.acidity, 0.99))) + scale_y_continuous(limits=c(2.720, quantile(wine$pH, 0.99))) + stat_smooth(method='lm')
+```
+
+Here we see pH decrease as fixed acidity increase.
+
+## Plot Three
+
+### density vs alcohol
+```{r}
+# scatter
+ggplot(aes(x=density, y=alcohol), data=wine) + geom_point(fill=I('#F79420'), color=I('black'), shape=21)  + scale_x_continuous(limits=c(0.9871, 1.0390)) + scale_y_continuous(limits=c(7.9, 14.20)) + stat_smooth(method='lm')
+```
+
+Here alcohol decreases as density increases.
+
+## Plot Four
+
+### chlorides vs density
+
+```{r warning=FALSE}
+# scatter
+ggplot(aes(x=chlorides, y=density), data=wine) + geom_point(fill=I('#F79420'), color=I('black'), shape=21)  + scale_x_continuous(limits=c(0, quantile(wine$chlorides, 0.99))) + scale_y_continuous(limits=c(0.9861, quantile(wine$density, 0.99))) + stat_smooth(method='lm')
+```
+
+As chlorides increase so does the density.
+
+# Reflection
+
+The wine data has over 4898 observations with features that describes how a wine may smell or taste. This is what we assume affects the quality (which is subjective in itself). Some preprocessing was needed to work with the data. The feature 'quality' was of interest but it was in numeric form instead of a factor. This feature is categorical; i.e. a wine may be labeled 0,1,2...10 depending on the quality. It appears that good quality wine have lower amounts of the sensory features than lower quality wine:
+
+volatile acidity
+citric acid
+residual sugar
+chlorides
+total sulfur dioxide
+
+The description of these variables from the data site suggests that these features affect the smell and/or taste. Now, there's evidence that the ratio of some of these features affects the quality. It appears the higher quality wines have a lower total sulfur dioxide to citric acid.
+
+As a follow up to this project, I would look at other ratios of other features. 
+
